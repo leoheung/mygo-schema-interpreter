@@ -1,0 +1,227 @@
+package schemaui
+
+import (
+	"errors"
+	"strconv"
+	"strings"
+
+	"github.com/egoist/mygo/ui"
+)
+
+// ErrEmptyType is returned by ParseSchema for a document whose root node has
+// no type.
+var ErrEmptyType = errors.New("schemaui: root node has empty type")
+
+// BorderSpec is a node's border: width in DIPs and a color string.
+type BorderSpec struct {
+	Width float32 `json:"width"`
+	Color string  `json:"color,omitempty"`
+}
+
+// Props are a node's layout, style and content properties. Zero values mean
+// "not set" and are skipped when applying, so a node only overrides what its
+// schema says. Colors parse as "#rgb", "#rgba", "#rrggbb" or "#rrggbbaa"; an
+// invalid color is ignored (the mygo Hex helper panics, this does not).
+type Props struct {
+	// Size. Width and Height are DIPs; Fill stretches the node over its
+	// parent's main axis.
+	Width     *float32 `json:"width,omitempty"`
+	Height    *float32 `json:"height,omitempty"`
+	MinWidth  *float32 `json:"minWidth,omitempty"`
+	MaxWidth  *float32 `json:"maxWidth,omitempty"`
+	MinHeight *float32 `json:"minHeight,omitempty"`
+	MaxHeight *float32 `json:"maxHeight,omitempty"`
+	Fill      bool     `json:"fill,omitempty"`
+
+	// Spacing. Padding, Margin and Radius take 1..4 values like CSS
+	// (all, vertical/horizontal, or top/right/bottom/left).
+	Padding []float32 `json:"padding,omitempty"`
+	Margin  []float32 `json:"margin,omitempty"`
+	Radius  []float32 `json:"radius,omitempty"`
+	Gap     *float32  `json:"gap,omitempty"`
+
+	// Flex. Grow, Shrink and Basis map straight onto the mygo properties.
+	Grow    *float32 `json:"grow,omitempty"`
+	Shrink  *float32 `json:"shrink,omitempty"`
+	Basis   *float32 `json:"basis,omitempty"`
+	Stretch bool     `json:"stretch,omitempty"` // AlignSelf(Stretch)
+
+	// Alignment: "start", "center", "end", "stretch", "spaceBetween",
+	// "spaceAround", "spaceEvenly" or "baseline". Invalid values are ignored.
+	Justify    string `json:"justify,omitempty"`
+	AlignItems string `json:"alignItems,omitempty"`
+	AlignSelf  string `json:"alignSelf,omitempty"`
+	Center     bool   `json:"center,omitempty"` // Center() shorthand
+
+	// Paint.
+	Background string      `json:"background,omitempty"`
+	Border     *BorderSpec `json:"border,omitempty"`
+	Opacity    *float32    `json:"opacity,omitempty"`
+	Clip       bool        `json:"clip,omitempty"`
+	Hidden     bool        `json:"hidden,omitempty"`
+	Absolute   bool        `json:"absolute,omitempty"`
+	Left       *float32    `json:"left,omitempty"`
+	Top        *float32    `json:"top,omitempty"`
+
+	// Text style.
+	FontSize  *float32 `json:"fontSize,omitempty"`
+	Bold      bool     `json:"bold,omitempty"`
+	TextColor string   `json:"textColor,omitempty"`
+
+	// Type-specific content.
+	Text        string   `json:"text,omitempty"`        // text, button
+	Src         string   `json:"src,omitempty"`         // image: data URI
+	Placeholder string   `json:"placeholder,omitempty"` // textInput
+	Options     []string `json:"options,omitempty"`     // select
+	Label       string   `json:"label,omitempty"`       // checkbox
+	Value       string   `json:"value,omitempty"`       // textInput, select initial
+}
+
+// alignValues maps schema alignment names onto mygo's Align constants.
+var alignValues = map[string]ui.Align{
+	"start":        ui.Start,
+	"center":       ui.Center,
+	"end":          ui.End,
+	"stretch":      ui.Stretch,
+	"spaceBetween": ui.SpaceBetween,
+	"spaceAround":  ui.SpaceAround,
+	"spaceEvenly":  ui.SpaceEvenly,
+	"baseline":     ui.Baseline,
+}
+
+// parseColor converts a schema color string. It returns ok=false on invalid
+// input instead of panicking the way ui.Hex does.
+func parseColor(s string) (ui.Color, bool) {
+	h := strings.TrimPrefix(strings.TrimSpace(s), "#")
+	if len(h) != 3 && len(h) != 4 && len(h) != 6 && len(h) != 8 {
+		return ui.Color{}, false
+	}
+	for i := 0; i < len(h); i++ {
+		if _, err := strconv.ParseUint(h[i:i+1], 16, 8); err != nil {
+			return ui.Color{}, false
+		}
+	}
+	return ui.Hex(h), true
+}
+
+// edges expands 1..4 schema values the way mygo's variadic properties do:
+// one value is all sides, two are vertical and horizontal, four are top,
+// right, bottom, left. More than four keeps the first four.
+func edges(v []float32) []float32 {
+	switch len(v) {
+	case 0:
+		return nil
+	case 1:
+		return []float32{v[0], v[0], v[0], v[0]}
+	case 2:
+		return []float32{v[0], v[1], v[0], v[1]}
+	case 3:
+		return []float32{v[0], v[1], v[2], v[1]}
+	default:
+		return v[:4]
+	}
+}
+
+// applyProps chains a node's set properties onto a freshly built element
+// and returns the element for further chaining.
+func applyProps(el ui.Element, p *Props) ui.Element {
+	if p == nil {
+		return el
+	}
+	if p.Width != nil {
+		el = el.Width(*p.Width)
+	}
+	if p.Height != nil {
+		el = el.Height(*p.Height)
+	}
+	if p.MinWidth != nil {
+		el = el.MinWidth(*p.MinWidth)
+	}
+	if p.MaxWidth != nil {
+		el = el.MaxWidth(*p.MaxWidth)
+	}
+	if p.MinHeight != nil {
+		el = el.MinHeight(*p.MinHeight)
+	}
+	if p.MaxHeight != nil {
+		el = el.MaxHeight(*p.MaxHeight)
+	}
+	if p.Fill {
+		el = el.Fill()
+	}
+	if len(p.Padding) > 0 {
+		el = el.Padding(edges(p.Padding)...)
+	}
+	if len(p.Margin) > 0 {
+		el = el.Margin(edges(p.Margin)...)
+	}
+	if len(p.Radius) > 0 {
+		el = el.Radius(edges(p.Radius)...)
+	}
+	if p.Gap != nil {
+		el = el.Gap(*p.Gap)
+	}
+	if p.Grow != nil {
+		el = el.Grow(*p.Grow)
+	}
+	if p.Shrink != nil {
+		el = el.Shrink(*p.Shrink)
+	}
+	if p.Basis != nil {
+		el = el.Basis(*p.Basis)
+	}
+	if p.Stretch {
+		el = el.AlignSelf(ui.Stretch)
+	}
+	if a, ok := alignValues[p.Justify]; ok {
+		el = el.Justify(a)
+	}
+	if a, ok := alignValues[p.AlignItems]; ok {
+		el = el.AlignItems(a)
+	}
+	if a, ok := alignValues[p.AlignSelf]; ok {
+		el = el.AlignSelf(a)
+	}
+	if p.Center {
+		el = el.Center()
+	}
+	if c, ok := parseColor(p.Background); ok {
+		el = el.Background(c)
+	}
+	if p.Border != nil {
+		if c, ok := parseColor(p.Border.Color); ok {
+			el = el.Border(p.Border.Width, c)
+		}
+	}
+	if p.Opacity != nil {
+		el = el.Opacity(*p.Opacity)
+	}
+	if p.Clip {
+		el = el.Clip()
+	}
+	if p.Hidden {
+		el = el.Hidden(true)
+	}
+	if p.Absolute {
+		el = el.Absolute()
+	}
+	if p.Left != nil {
+		el = el.Left(*p.Left)
+	}
+	if p.Top != nil {
+		el = el.Top(*p.Top)
+	}
+	if p.FontSize != nil {
+		el = el.FontSize(*p.FontSize)
+	}
+	if p.Bold {
+		el = el.Bold()
+	}
+	if c, ok := parseColor(p.TextColor); ok {
+		el = el.TextColor(c)
+	}
+	if p.Placeholder != "" {
+		el = el.Placeholder(p.Placeholder)
+	}
+	return el
+}

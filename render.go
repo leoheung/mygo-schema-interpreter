@@ -1,0 +1,191 @@
+package schemaui
+
+import (
+	"strconv"
+	"sync/atomic"
+
+	"github.com/egoist/mygo/ui"
+)
+
+// Renderer interprets a schema tree onto native mygo widgets. It is the
+// schema counterpart of what the mygo markdown view does for an AST: every
+// frame, Draw walks the current tree and calls the ui constructors, so a
+// SetSchema from any goroutine simply takes effect on the next frame.
+//
+// A host page typically owns one Renderer, feeds it a schema once fetched,
+// and calls Draw inside its view function:
+//
+//	reg := schemaui.NewRegistry()
+//	// reg.RegisterProvider("home", ...), reg.RegisterComponent("playerCard", ...), ...
+//	r := schemaui.NewRenderer(reg)
+//	r.SetSchema(schema) // from ParseSchema, any goroutine
+//	// in the page's view:
+//	r.Draw(c)
+type Renderer struct {
+	root  atomic.Pointer[Node]
+	reg   *Registry
+	state *StateStore
+}
+
+// NewRenderer returns a renderer drawing through reg's tables. A nil registry
+// is treated as empty: everything without a primitive implementation
+// degrades to a placeholder.
+func NewRenderer(reg *Registry) *Renderer {
+	if reg == nil {
+		reg = NewRegistry()
+	}
+	return &Renderer{reg: reg, state: newStateStore()}
+}
+
+// SetSchema swaps the tree to draw. Safe from any goroutine; the new tree
+// shows on the next frame. A nil schema draws a spinner.
+func (r *Renderer) SetSchema(n *Node) { r.root.Store(n) }
+
+// Schema returns the current tree, or nil when none was set.
+func (r *Renderer) Schema() *Node { return r.root.Load() }
+
+// State returns the renderer's state store, where input widgets keep their
+// values. Actions read and clear inputs through it.
+func (r *Renderer) State() *StateStore { return r.state }
+
+// Registry returns the registry the renderer draws through, so a host can
+// register components lazily.
+func (r *Renderer) Registry() *Registry { return r.reg }
+
+// Draw draws the current schema tree. Call it from the page's view function
+// every frame, like any mygo widget. With no schema set it draws a spinner.
+func (r *Renderer) Draw(c *ui.Context) {
+	root := r.root.Load()
+	if root == nil {
+		ui.Spinner(c)
+		return
+	}
+	r.drawNode(c, root, "0", nil)
+}
+
+// drawNode draws one node at a tree path under an enclosing iteration. The
+// node's key for cross-frame state is its explicit Key when set, else the
+// path, so a stable schema keeps input and scroll state across frames.
+func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) {
+	if n == nil {
+		return
+	}
+	key := n.Key
+	if key == "" {
+		key = path
+	}
+	kc := c.Key(key)
+
+	switch n.Type {
+	case TypeColumn:
+		applyProps(ui.Column(kc), &n.Props).Children(func() {
+			r.drawContent(c, n, path, it)
+		})
+	case TypeRow:
+		applyProps(ui.Row(kc), &n.Props).Children(func() {
+			r.drawContent(c, n, path, it)
+		})
+	case TypeBox:
+		applyProps(ui.Box(kc), &n.Props).Children(func() {
+			r.drawContent(c, n, path, it)
+		})
+	case TypeScroll:
+		applyProps(ui.Scroll(kc), &n.Props).Children(func() {
+			r.drawContent(c, n, path, it)
+		})
+	case TypeText:
+		text := n.Props.Text
+		if v, ok := r.lookup(n.Bind, it); ok {
+			text = toText(v)
+		}
+		applyProps(ui.Text(kc, text), &n.Props)
+	case TypeImage:
+		if src := r.resolveImage(n, it); src != nil {
+			applyProps(ui.Image(kc, src), &n.Props)
+		} else {
+			r.drawFallback(c, "image: no source")
+		}
+	case TypeButton:
+		btn := applyProps(ui.Button(kc, n.Props.Text), &n.Props)
+		btn.Children(func() {
+			r.drawContent(c, n, path, it)
+		})
+		if btn.Clicked() {
+			r.fire(n.Action)
+		}
+	case TypeTextInput:
+		applyProps(ui.TextInput(kc, r.state.StringPtr(key, n.Props.Value)), &n.Props)
+	case TypeCheckbox:
+		applyProps(ui.Checkbox(kc, r.state.BoolPtr(key), n.Props.Label), &n.Props)
+	case TypeSelect:
+		applyProps(ui.Select(kc, r.state.StringPtr(key, n.Props.Value), n.Props.Options), &n.Props)
+	case TypeSpinner:
+		applyProps(ui.Spinner(kc), &n.Props)
+	case TypeDivider:
+		applyProps(ui.Divider(kc), &n.Props)
+	case TypeSpacer:
+		applyProps(ui.Spacer(kc), &n.Props)
+	case TypeComponent:
+		if f := r.reg.component(n.ComponentID); f != nil {
+			f(c, r, n)
+			return
+		}
+		r.drawFallback(c, "component not registered: "+n.ComponentID)
+	default:
+		r.drawFallback(c, "unknown type: "+n.Type)
+	}
+}
+
+// drawContent draws a container's content: with a bind and item templates it
+// iterates the bound slice and draws the templates with "$item" resolving to
+// each element; otherwise it draws the plain children.
+func (r *Renderer) drawContent(c *ui.Context, n *Node, path string, it *iteration) {
+	if n.Bind != nil && len(n.Items) > 0 {
+		for i, item := range r.lookupSlice(n.Bind, it) {
+			child := &iteration{parent: it, value: item}
+			for j := range n.Items {
+				r.drawNode(c, &n.Items[j], path+"."+itoa(i)+"."+itoa(j), child)
+			}
+		}
+		return
+	}
+	for i := range n.Children {
+		r.drawNode(c, &n.Children[i], path+"."+itoa(i), it)
+	}
+}
+
+// resolveImage finds an image source for an image node: the bound value
+// first, else the data URI in props.
+func (r *Renderer) resolveImage(n *Node, it *iteration) ui.ImageSource {
+	if v, ok := r.lookup(n.Bind, it); ok {
+		if src := toImageSource(v); src != nil {
+			return src
+		}
+	}
+	if n.Props.Src != "" {
+		return toImageSource(n.Props.Src)
+	}
+	return nil
+}
+
+// fire dispatches a button's action through the registry. An unregistered
+// action is dropped, consistent with the degrade-not-panic rule.
+func (r *Renderer) fire(a *Action) {
+	if a == nil {
+		return
+	}
+	if f := r.reg.action(a.ID); f != nil {
+		f(r, a.Args)
+	}
+}
+
+// drawFallback draws a small muted placeholder box with a note, the one
+// visual an unknown type, an unregistered component or a missing image
+// source degrades to.
+func (r *Renderer) drawFallback(c *ui.Context, note string) {
+	ui.Box(c).Padding(4, 8).Radius(4).Children(func() {
+		ui.Text(c, note).FontSize(11).Opacity(0.55)
+	})
+}
+
+func itoa(i int) string { return strconv.Itoa(i) }
