@@ -78,10 +78,30 @@ type Bind struct {
 // iterating container.
 const SourceItem = "$item"
 
-// Action names a host-registered action and carries its arguments.
+// Action names a host-registered action and carries its arguments. The
+// optional Toast side effect fires automatically after the handler (if any),
+// so a schema can ask the interpreter itself to show a toast without the
+// host knowing — useful for confirmation messages, form errors, etc.
 type Action struct {
-	ID   string         `json:"id"`
-	Args map[string]any `json:"args,omitempty"`
+	ID    string         `json:"id"`
+	Args  map[string]any `json:"args,omitempty"`
+	Toast *ActionToast   `json:"toast,omitempty"`
+}
+
+// ActionToast is an automatic toast the interpreter fires as an action
+// side effect. Title and Description support {{stateKey}} templates that
+// expand against the renderer's StateStore so a toast can echo the current
+// value of any input widget.
+//
+//	"action": {
+//	  "id": "echo",
+//	  "toast": { "title": "Echo: {{demo.input}}", "type": "success" }
+//	}
+type ActionToast struct {
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	Type        string `json:"type,omitempty"`        // success / error / warning (default: info)
+	DurationMs  int    `json:"durationMs,omitempty"`  // 0 → mygo default (4s)
 }
 
 // ParseSchema decodes a schema document into a Node tree. The input is plain

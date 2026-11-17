@@ -3,6 +3,7 @@ package schemaui
 import (
 	"strconv"
 	"sync/atomic"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -111,7 +112,7 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 			r.drawContent(c, n, path, it)
 		})
 		if btn.Clicked() {
-			r.fire(n.Action)
+			r.fire(c, n.Action)
 		}
 	case TypeTextInput:
 		applyProps(ui.TextInput(kc, r.state.StringPtr(key, n.Props.Value)), &n.Props)
@@ -179,15 +180,36 @@ func (r *Renderer) resolveImage(n *Node, it *iteration) ui.ImageSource {
 	return nil
 }
 
-// fire dispatches a button's action through the registry. An unregistered
-// action is dropped, consistent with the degrade-not-panic rule.
-func (r *Renderer) fire(a *Action) {
+// fire dispatches a button's action through the registry, then fires the
+// optional Toast side effect. An unregistered action handler is dropped
+// (consistent with degrade-not-panic), but the toast still fires — so a
+// schema-defined confirmation message works even when the host provides no
+// handler.
+func (r *Renderer) fire(c *ui.Context, a *Action) {
 	if a == nil {
 		return
 	}
 	if f := r.reg.action(a.ID); f != nil {
 		f(r, a.Args)
 	}
+	if a.Toast != nil {
+		r.fireToast(c, a.Toast)
+	}
+}
+
+// fireToast sends a toast through the mygo engine. Title and Description
+// have {{stateKey}} templates expanded against the renderer's state store.
+// DurationMs zero means the mygo default (4s); the toast ID re-uses the
+// title so repeated clicks overwrite instead of stacking.
+func (r *Renderer) fireToast(c *ui.Context, t *ActionToast) {
+	duration := time.Duration(t.DurationMs) * time.Millisecond
+	c.AddToast(ui.Toast{
+		ID:          t.Title,
+		Title:       expandStateTemplate(t.Title, r.state),
+		Description: expandStateTemplate(t.Description, r.state),
+		Type:        t.Type,
+		Timeout:     duration,
+	})
 }
 
 // drawFallback draws a small muted placeholder box with a note, the one

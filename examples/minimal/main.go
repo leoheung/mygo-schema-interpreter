@@ -72,8 +72,9 @@ func newDemo(schemaPath string) *demo {
 	})
 
 	reg.RegisterAction("echo", func(r *schemaui.Renderer, args map[string]any) {
-		fmt.Printf("action echo: args=%v input=%q checked=%v region=%v\n",
-			args, r.State().String("demo.input"), r.State().Bool("demo.tos"), r.State().String("demo.region"))
+		// Toast side effect is fired automatically by the interpreter
+		// (defined in schema.json). This handler is intentionally empty —
+		// it proves the toast works with or without a host handler.
 	})
 
 	d := &demo{renderer: schemaui.NewRenderer(reg)}

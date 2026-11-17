@@ -98,7 +98,15 @@
 						{
 							"type": "button",
 							"props": { "text": "Echo" },
-							"action": { "id": "echo", "args": { "when": "on-click" } }
+							"action": {
+							"id": "echo",
+							"args": { "when": "on-click" },
+							"toast": {
+								"title": "Echo: {{demo.input}}",
+								"description": "tos={{demo.tos}} region={{demo.region}}",
+								"type": "success"
+							}
+						}
 						},
 						{
 							"type": "checkbox",
