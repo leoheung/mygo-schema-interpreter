@@ -1,0 +1,155 @@
+{
+	"type": "scroll",
+	"props": { "fill": true },
+	"children": [
+		{
+			"type": "column",
+			"props": { "gap": 16, "padding": [24], "alignItems": "start" },
+			"children": [
+				{
+					"type": "row",
+					"props": { "gap": 10, "alignItems": "center", "fill": true },
+					"children": [
+						{
+							"type": "text",
+							"props": { "text": "schema-interpreter demo", "fontSize": 20, "bold": true }
+						},
+						{
+							"type": "box",
+							"props": { "padding": [2, 10], "radius": [6], "background": "#4f8ff7" },
+							"children": [
+								{
+									"type": "text",
+									"bind": { "source": "clock", "path": "now" },
+									"props": { "fontSize": 12, "textColor": "#ffffff" }
+								}
+							]
+						}
+					]
+				},
+				{
+					"type": "text",
+					"props": {
+						"text": "This window is not code: it was read from schema.json at launch and interpreted into native mygo widgets. The clock above re-renders every second from the clock provider.",
+						"fontSize": 12,
+						"textColor": "#71717a"
+					}
+				},
+				{ "type": "divider" },
+				{
+					"type": "text",
+					"props": { "text": "Team (bind iteration + tierBadge component)", "fontSize": 14, "bold": true }
+				},
+				{
+					"type": "column",
+					"props": { "gap": 6 },
+					"bind": { "source": "team" },
+					"items": [
+						{
+							"type": "row",
+							"props": { "gap": 10, "alignItems": "center" },
+							"children": [
+								{
+									"type": "box",
+									"props": {
+										"width": 28,
+										"height": 28,
+										"radius": [14],
+										"background": "#1e1e2e",
+										"center": true
+									},
+									"children": [
+										{
+											"type": "text",
+											"bind": { "source": "$item", "path": "Name" },
+											"props": { "fontSize": 11, "textColor": "#ffffff" }
+										}
+									]
+								},
+								{
+									"type": "text",
+									"bind": { "source": "$item", "path": "Champ" },
+									"props": { "bold": true }
+								},
+								{
+									"type": "component",
+									"componentId": "tierBadge",
+									"props": { "label": "" },
+									"bind": { "source": "$item", "path": "Tier" }
+								}
+							]
+						}
+					]
+				},
+				{ "type": "divider" },
+				{
+					"type": "text",
+					"props": { "text": "Form (state store + action)", "fontSize": 14, "bold": true }
+				},
+				{
+					"type": "textInput",
+					"key": "demo.input",
+					"props": { "placeholder": "Type something, then Echo" }
+				},
+				{
+					"type": "row",
+					"props": { "gap": 8, "alignItems": "center" },
+					"children": [
+						{
+							"type": "button",
+							"props": { "text": "Echo" },
+							"action": { "id": "echo", "args": { "when": "on-click" } }
+						},
+						{
+							"type": "checkbox",
+							"key": "demo.tos",
+							"props": { "label": "I am not a script" }
+						}
+					]
+				},
+				{
+					"type": "select",
+					"key": "demo.region",
+					"props": { "value": "euw", "options": ["euw", "eune", "na", "kr"] }
+				},
+				{ "type": "divider" },
+				{
+					"type": "row",
+					"props": { "gap": 10, "alignItems": "center" },
+					"children": [
+						{ "type": "spinner" },
+						{
+							"type": "text",
+							"props": { "text": "spinner · spacer →", "fontSize": 12, "textColor": "#71717a" }
+						},
+						{ "type": "spacer" },
+						{
+							"type": "text",
+							"props": { "text": "← spacer", "fontSize": 12, "textColor": "#71717a" }
+						}
+					]
+				},
+				{
+					"type": "box",
+					"props": {
+						"fill": true,
+						"padding": [10, 14],
+						"radius": [8],
+						"background": "#f4f4f5",
+						"border": { "width": 1, "color": "#e4e4e7" }
+					},
+					"children": [
+						{
+							"type": "text",
+							"props": {
+								"text": "Swap this file (or pass -schema) and relaunch: same binary, different window.",
+								"fontSize": 12,
+								"textColor": "#52525b"
+							}
+						}
+					]
+				}
+			]
+		}
+	]
+}

@@ -126,11 +126,22 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 	case TypeSpacer:
 		applyProps(ui.Spacer(kc), &n.Props)
 	case TypeComponent:
-		if f := r.reg.component(n.ComponentID); f != nil {
-			f(c, r, n)
+		n2 := n
+		if n.Bind != nil {
+			// A component's bind resolves to its label, so a component in an
+			// iterating template takes its argument from the item. The copy
+			// keeps the schema tree itself immutable.
+			if v, ok := r.lookup(n.Bind, it); ok {
+				cp := *n
+				cp.Props.Label = toText(v)
+				n2 = &cp
+			}
+		}
+		if f := r.reg.component(n2.ComponentID); f != nil {
+			f(c, r, n2)
 			return
 		}
-		r.drawFallback(c, "component not registered: "+n.ComponentID)
+		r.drawFallback(c, "component not registered: "+n2.ComponentID)
 	default:
 		r.drawFallback(c, "unknown type: "+n.Type)
 	}
