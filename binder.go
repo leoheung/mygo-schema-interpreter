@@ -10,11 +10,13 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// iteration is one level of an iterating container: the current item and the
-// enclosing iteration, so nested "$item" binds resolve inside-out.
+// iteration is one level of an iterating container: the current item, its
+// 0-based position (for "$index" action substitution), and the enclosing
+// iteration, so nested "$item" binds resolve inside-out.
 type iteration struct {
 	parent *iteration
 	value  any
+	index  int
 }
 
 // lookup resolves a bind to a value: the "$item" source walks the current

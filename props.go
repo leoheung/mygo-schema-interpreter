@@ -25,15 +25,15 @@ type BorderSpec struct {
 type Props struct {
 	// Size. Width and Height are DIPs; Fill stretches the node over its
 	// parent's main axis.
-	Width     *float32 `json:"width,omitempty"`
-	Height    *float32 `json:"height,omitempty"`
+	Width  *float32 `json:"width,omitempty"`
+	Height *float32 `json:"height,omitempty"`
 	// WidthPercent sizes against the parent's width in percent (0..100).
 	WidthPercent *float32 `json:"widthPercent,omitempty"`
-	MinWidth  *float32 `json:"minWidth,omitempty"`
-	MaxWidth  *float32 `json:"maxWidth,omitempty"`
-	MinHeight *float32 `json:"minHeight,omitempty"`
-	MaxHeight *float32 `json:"maxHeight,omitempty"`
-	Fill      bool     `json:"fill,omitempty"`
+	MinWidth     *float32 `json:"minWidth,omitempty"`
+	MaxWidth     *float32 `json:"maxWidth,omitempty"`
+	MinHeight    *float32 `json:"minHeight,omitempty"`
+	MaxHeight    *float32 `json:"maxHeight,omitempty"`
+	Fill         bool     `json:"fill,omitempty"`
 
 	// Spacing. Padding, Margin and Radius take 1..4 values like CSS
 	// (all, vertical/horizontal, or top/right/bottom/left).
@@ -62,20 +62,22 @@ type Props struct {
 	BackgroundBind *Bind `json:"backgroundBind,omitempty"`
 	// BorderEdgeBind resolves to a color string for a 4-wide bottom edge
 	// (the row accent), data-driven like BackgroundBind.
-	BorderEdgeBind *Bind      `json:"borderEdgeBind,omitempty"`
+	BorderEdgeBind *Bind       `json:"borderEdgeBind,omitempty"`
 	Border         *BorderSpec `json:"border,omitempty"`
 	// BorderBottom is the row-edge accent: a bottom-only border of the
 	// given width and color (win/loss rows carry one).
 	BorderBottom *BorderSpec `json:"borderBottom,omitempty"`
 	// Cursor is "pointer" for clickable-looking nodes; anything else is
 	// ignored.
-	Cursor  string  `json:"cursor,omitempty"`
-	Opacity *float32 `json:"opacity,omitempty"`
-	Clip    bool    `json:"clip,omitempty"`
-	Hidden  bool    `json:"hidden,omitempty"`
-	Absolute bool   `json:"absolute,omitempty"`
-	Left    *float32 `json:"left,omitempty"`
-	Top     *float32 `json:"top,omitempty"`
+	Cursor   string   `json:"cursor,omitempty"`
+	Opacity  *float32 `json:"opacity,omitempty"`
+	Clip     bool     `json:"clip,omitempty"`
+	Hidden   bool     `json:"hidden,omitempty"`
+	Absolute bool     `json:"absolute,omitempty"`
+	Left     *float32 `json:"left,omitempty"`
+	Top      *float32 `json:"top,omitempty"`
+	Bottom   *float32 `json:"bottom,omitempty"`
+	Right    *float32 `json:"right,omitempty"`
 
 	// Text style.
 	FontSize  *float32 `json:"fontSize,omitempty"`
@@ -252,6 +254,12 @@ func (g *Registry) applyProps(c *ui.Context, el ui.Element, p *Props) ui.Element
 	}
 	if p.Top != nil {
 		el = el.Top(*p.Top)
+	}
+	if p.Bottom != nil {
+		el = el.Bottom(*p.Bottom)
+	}
+	if p.Right != nil {
+		el = el.Right(*p.Right)
 	}
 	if p.FontSize != nil {
 		el = el.FontSize(*p.FontSize)

@@ -90,14 +90,14 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 	case TypeRow:
 		el := r.reg.applyProps(c, ui.Row(kc), &n.Props)
 		el = r.bindPaint(c, el, n, it)
-		r.clickable(c, el, n)
+		r.clickable(c, el, n, it)
 		el.Children(func() {
 			r.drawContent(c, n, path, it)
 		})
 	case TypeBox:
 		el := r.reg.applyProps(c, ui.Box(kc), &n.Props)
 		el = r.bindPaint(c, el, n, it)
-		r.clickable(c, el, n)
+		r.clickable(c, el, n, it)
 		el.Children(func() {
 			r.drawContent(c, n, path, it)
 		})
@@ -175,7 +175,7 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 func (r *Renderer) drawContent(c *ui.Context, n *Node, path string, it *iteration) {
 	if n.Bind != nil && len(n.Items) > 0 {
 		for i, item := range r.lookupSlice(n.Bind, it) {
-			child := &iteration{parent: it, value: item}
+			child := &iteration{parent: it, value: item, index: i}
 			for j := range n.Items {
 				r.drawNode(c, &n.Items[j], path+"."+itoa(i)+"."+itoa(j), child)
 			}
@@ -264,13 +264,26 @@ func (r *Renderer) bindPaint(c *ui.Context, el ui.Element, n *Node, it *iteratio
 
 // clickable wires a container's optional action: a pointer cursor and the
 // click firing it — a row or box acts as a button without button styling.
-func (r *Renderer) clickable(c *ui.Context, el ui.Element, n *Node) {
+// Inside an items iteration, an args value of "$index" becomes the item's
+// position, so a row's click can name itself.
+func (r *Renderer) clickable(c *ui.Context, el ui.Element, n *Node, it *iteration) {
 	if n.Action == nil {
 		return
 	}
 	el.Cursor(ui.CursorPointer)
 	if el.Clicked() {
-		r.fire(c, n.Action)
+		a := n.Action
+		if it != nil && len(a.Args) > 0 {
+			args := make(map[string]any, len(a.Args))
+			for k, v := range a.Args {
+				if s, ok := v.(string); ok && s == "$index" {
+					v = it.index
+				}
+				args[k] = v
+			}
+			a = &Action{ID: a.ID, Args: args, Set: a.Set, Toast: a.Toast}
+		}
+		r.fire(c, a)
 	}
 }
 
