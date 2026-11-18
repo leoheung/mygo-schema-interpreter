@@ -43,10 +43,11 @@ type Props struct {
 	Gap     *float32  `json:"gap,omitempty"`
 
 	// Flex. Grow, Shrink and Basis map straight onto the mygo properties.
-	Grow    *float32 `json:"grow,omitempty"`
-	Shrink  *float32 `json:"shrink,omitempty"`
-	Basis   *float32 `json:"basis,omitempty"`
-	Stretch bool     `json:"stretch,omitempty"` // AlignSelf(Stretch)
+	Grow        *float32 `json:"grow,omitempty"`
+	Shrink      *float32 `json:"shrink,omitempty"`
+	Basis       *float32 `json:"basis,omitempty"`
+	Stretch     bool     `json:"stretch,omitempty"`     // AlignSelf(Stretch)
+	AspectRatio *float32 `json:"aspectRatio,omitempty"` // height = width / r
 
 	// Alignment: "start", "center", "end", "stretch", "spaceBetween",
 	// "spaceAround", "spaceEvenly" or "baseline". Invalid values are ignored.
@@ -161,6 +162,12 @@ func (g *Registry) applyProps(c *ui.Context, el ui.Element, p *Props) ui.Element
 	if p == nil {
 		return el
 	}
+	// Fill first, so an explicit Width/WidthPercent/Height after it wins —
+	// native code chains Fill().WidthPercent(40) and expects the 40% to
+	// stand; replaying Fill last would snap the width back to 100%.
+	if p.Fill {
+		el = el.Fill()
+	}
 	if p.Width != nil {
 		el = el.Width(*p.Width)
 	}
@@ -182,9 +189,6 @@ func (g *Registry) applyProps(c *ui.Context, el ui.Element, p *Props) ui.Element
 	if p.MaxHeight != nil {
 		el = el.MaxHeight(*p.MaxHeight)
 	}
-	if p.Fill {
-		el = el.Fill()
-	}
 	if len(p.Padding) > 0 {
 		el = el.Padding(edges(p.Padding)...)
 	}
@@ -205,6 +209,9 @@ func (g *Registry) applyProps(c *ui.Context, el ui.Element, p *Props) ui.Element
 	}
 	if p.Basis != nil {
 		el = el.Basis(*p.Basis)
+	}
+	if p.AspectRatio != nil {
+		el = el.AspectRatio(*p.AspectRatio)
 	}
 	if p.Stretch {
 		el = el.AlignSelf(ui.Stretch)
