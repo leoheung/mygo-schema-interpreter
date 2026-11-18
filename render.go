@@ -249,6 +249,13 @@ func (r *Renderer) fireToast(c *ui.Context, t *ActionToast) {
 	})
 }
 
+// FireAction fires a schema action from host code — the entry composite
+// components use to run the referencing node's action (handler, set side
+// effects, toast) exactly as a button click would.
+func (r *Renderer) FireAction(c *ui.Context, a *Action) {
+	r.fire(c, a)
+}
+
 // text resolves a whole-string {{loc:key}} token through the registry's
 // text table. Anything else — plain literals, unregistered keys, data from
 // binds — returns untouched, so a missing translation shows as the token

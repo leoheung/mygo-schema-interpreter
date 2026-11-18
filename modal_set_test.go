@@ -55,6 +55,19 @@ func TestFireAppliesSetWithoutHandler(t *testing.T) {
 	}
 }
 
+func TestFireActionExported(t *testing.T) {
+	r := NewRenderer(nil)
+	called := false
+	r.Registry().RegisterAction("ping", func(_ *Renderer, _ map[string]any) { called = true })
+	r.FireAction(nil, &Action{ID: "ping", Set: map[string]any{"ok": true}})
+	if !called {
+		t.Fatal("FireAction must dispatch the registered handler")
+	}
+	if !r.State().Bool("ok") {
+		t.Fatal("FireAction must apply the set side effect")
+	}
+}
+
 func TestTextTokenResolution(t *testing.T) {
 	reg := NewRegistry()
 	reg.RegisterText("hello", func() string { return "你好" })
