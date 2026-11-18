@@ -75,6 +75,7 @@ type Props struct {
 	Options     []string `json:"options,omitempty"`     // select
 	Label       string   `json:"label,omitempty"`       // checkbox
 	Value       string   `json:"value,omitempty"`       // textInput, select initial
+	StateKey    string   `json:"stateKey,omitempty"`    // modal: the bool state that opens it (default: the node's key)
 }
 
 // alignValues maps schema alignment names onto mygo's Align constants.

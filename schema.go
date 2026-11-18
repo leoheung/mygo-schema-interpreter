@@ -35,6 +35,10 @@ const (
 	TypeSpinner   = "spinner"   // ui.Spinner
 	TypeDivider   = "divider"   // ui.Divider
 	TypeSpacer    = "spacer"    // ui.Spacer
+	// TypeModal draws its children inside a mygo modal overlay while the
+	// bool state at props.stateKey is true; buttons open and close it by
+	// writing that state (an action handler or the declarative action.set).
+	TypeModal = "modal"
 	// TypeComponent renders a composite component the host registered under
 	// node.ComponentID. The component draws with the renderer's context,
 	// state and registry, and reads its arguments from node.Props.
@@ -79,12 +83,14 @@ type Bind struct {
 const SourceItem = "$item"
 
 // Action names a host-registered action and carries its arguments. The
-// optional Toast side effect fires automatically after the handler (if any),
-// so a schema can ask the interpreter itself to show a toast without the
-// host knowing — useful for confirmation messages, form errors, etc.
+// declarative Set side effect writes values into the renderer's state store
+// after the handler (if any) ran — a schema can toggle a modal or flip a
+// page marker without the host registering anything. The optional Toast side
+// effect fires after Set, so a toast can echo the new state.
 type Action struct {
 	ID    string         `json:"id"`
 	Args  map[string]any `json:"args,omitempty"`
+	Set   map[string]any `json:"set,omitempty"` // stateKey → bool | string
 	Toast *ActionToast   `json:"toast,omitempty"`
 }
 

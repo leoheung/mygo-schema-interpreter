@@ -126,6 +126,16 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 		applyProps(ui.Divider(kc), &n.Props)
 	case TypeSpacer:
 		applyProps(ui.Spacer(kc), &n.Props)
+	case TypeModal:
+		// The overlay follows the bool state at stateKey (the node's own
+		// key when unset); buttons open and close it by writing that state.
+		openKey := n.Props.StateKey
+		if openKey == "" {
+			openKey = key
+		}
+		applyProps(ui.Modal(kc, r.state.BoolPtr(openKey), func() {
+			r.drawContent(c, n, path, it)
+		}), &n.Props)
 	case TypeComponent:
 		n2 := n
 		if n.Bind != nil {
@@ -180,17 +190,26 @@ func (r *Renderer) resolveImage(n *Node, it *iteration) ui.ImageSource {
 	return nil
 }
 
-// fire dispatches a button's action through the registry, then fires the
-// optional Toast side effect. An unregistered action handler is dropped
-// (consistent with degrade-not-panic), but the toast still fires — so a
-// schema-defined confirmation message works even when the host provides no
-// handler.
+// fire dispatches a button's action through the registry, applies the
+// declarative Set side effect, then fires the optional Toast. An action with
+// no handler id still runs Set and Toast — a purely declarative button (a
+// modal's close button needs no host code).
 func (r *Renderer) fire(c *ui.Context, a *Action) {
 	if a == nil {
 		return
 	}
-	if f := r.reg.action(a.ID); f != nil {
-		f(r, a.Args)
+	if a.ID != "" {
+		if f := r.reg.action(a.ID); f != nil {
+			f(r, a.Args)
+		}
+	}
+	for k, v := range a.Set {
+		switch t := v.(type) {
+		case bool:
+			*r.state.BoolPtr(k) = t
+		case string:
+			*r.state.StringPtr(k, "") = t
+		}
 	}
 	if a.Toast != nil {
 		r.fireToast(c, a.Toast)
