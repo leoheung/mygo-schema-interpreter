@@ -2,6 +2,7 @@ package schemaui
 
 import (
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -106,7 +107,7 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 			r.drawContent(c, n, path, it)
 		})
 	case TypeText:
-		text := n.Props.Text
+		text := r.text(n.Props.Text)
 		if v, ok := r.lookup(n.Bind, it); ok {
 			text = toText(v)
 		}
@@ -118,7 +119,7 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 			r.drawFallback(c, "image: no source")
 		}
 	case TypeButton:
-		btn := r.reg.applyProps(c, ui.Button(kc, n.Props.Text), &n.Props)
+		btn := r.reg.applyProps(c, ui.Button(kc, r.text(n.Props.Text)), &n.Props)
 		btn.Children(func() {
 			r.drawContent(c, n, path, it)
 		})
@@ -130,7 +131,11 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 	case TypeCheckbox:
 		r.reg.applyProps(c, ui.Checkbox(kc, r.state.BoolPtr(key), n.Props.Label), &n.Props)
 	case TypeSelect:
-		r.reg.applyProps(c, ui.Select(kc, r.state.StringPtr(key, n.Props.Value), n.Props.Options), &n.Props)
+		options := make([]string, len(n.Props.Options))
+		for i, o := range n.Props.Options {
+			options[i] = r.text(o)
+		}
+		r.reg.applyProps(c, ui.Select(kc, r.state.StringPtr(key, r.text(n.Props.Value)), options), &n.Props)
 	case TypeSpinner:
 		r.reg.applyProps(c, ui.Spinner(kc), &n.Props)
 	case TypeDivider:
@@ -228,18 +233,36 @@ func (r *Renderer) fire(c *ui.Context, a *Action) {
 }
 
 // fireToast sends a toast through the mygo engine. Title and Description
-// have {{stateKey}} templates expanded against the renderer's state store.
-// DurationMs zero means the mygo default (4s); the toast ID re-uses the
-// title so repeated clicks overwrite instead of stacking.
+// first resolve their {{loc:key}} tokens (the host's i18n), then expand
+// {{stateKey}} templates against the state store — loc first, because the
+// state expander would blank an unknown {{...}} key. DurationMs zero means
+// the mygo default (4s); the toast ID re-uses the title so repeated clicks
+// overwrite instead of stacking.
 func (r *Renderer) fireToast(c *ui.Context, t *ActionToast) {
 	duration := time.Duration(t.DurationMs) * time.Millisecond
 	c.AddToast(ui.Toast{
 		ID:          t.Title,
-		Title:       expandStateTemplate(t.Title, r.state),
-		Description: expandStateTemplate(t.Description, r.state),
+		Title:       expandStateTemplate(r.text(t.Title), r.state),
+		Description: expandStateTemplate(r.text(t.Description), r.state),
 		Type:        t.Type,
 		Timeout:     duration,
 	})
+}
+
+// text resolves a whole-string {{loc:key}} token through the registry's
+// text table. Anything else — plain literals, unregistered keys, data from
+// binds — returns untouched, so a missing translation shows as the token
+// itself (visible, not silent).
+func (r *Renderer) text(s string) string {
+	const prefix, suffix = "{{loc:", "}}"
+	if !strings.HasPrefix(s, prefix) || !strings.HasSuffix(s, suffix) || len(s) <= len(prefix)+len(suffix) {
+		return s
+	}
+	key := s[len(prefix) : len(s)-len(suffix)]
+	if f := r.reg.text(key); f != nil {
+		return f()
+	}
+	return s
 }
 
 // bindPaint applies the data-bound paint overrides: BackgroundBind and

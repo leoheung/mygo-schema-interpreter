@@ -25,17 +25,23 @@ type ActionFunc func(r *Renderer, args map[string]any)
 // palette, so a token stays correct across theme switches.
 type ColorFunc func(c *ui.Context) ui.Color
 
+// TextFunc resolves a text token ({{loc:key}}) at draw time — the host's
+// current-locale catalog accessor, so a schema stays correct across
+// language switches.
+type TextFunc func() string
+
 // Registry holds the host's tables: composite components, data-source
-// providers, actions and color tokens. A schema references them by name;
-// registering the same name overwrites. All methods are safe for concurrent
-// use, though the usual pattern is registering everything up front and only
-// looking up while drawing.
+// providers, actions, color tokens and text tokens. A schema references
+// them by name; registering the same name overwrites. All methods are safe
+// for concurrent use, though the usual pattern is registering everything up
+// front and only looking up while drawing.
 type Registry struct {
 	mu         sync.RWMutex
 	components map[string]ComponentFunc
 	providers  map[string]ProviderFunc
 	actions    map[string]ActionFunc
 	colors     map[string]ColorFunc
+	texts      map[string]TextFunc
 }
 
 // NewRegistry returns an empty registry.
@@ -45,6 +51,7 @@ func NewRegistry() *Registry {
 		providers:  make(map[string]ProviderFunc),
 		actions:    make(map[string]ActionFunc),
 		colors:     make(map[string]ColorFunc),
+		texts:      make(map[string]TextFunc),
 	}
 }
 
@@ -81,6 +88,22 @@ func (g *Registry) RegisterColor(name string, f ColorFunc) {
 func (g *Registry) color(name string) ColorFunc {
 	g.mu.RLock()
 	f := g.colors[name]
+	g.mu.RUnlock()
+	return f
+}
+
+// RegisterText registers a text token: a schema literal "{{loc:key}}" in a
+// text, button, select option or toast title resolves through f at draw
+// time — the host's own i18n stays the single source of copy.
+func (g *Registry) RegisterText(key string, f TextFunc) {
+	g.mu.Lock()
+	g.texts[key] = f
+	g.mu.Unlock()
+}
+
+func (g *Registry) text(key string) TextFunc {
+	g.mu.RLock()
+	f := g.texts[key]
 	g.mu.RUnlock()
 	return f
 }

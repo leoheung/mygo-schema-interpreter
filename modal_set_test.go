@@ -55,6 +55,25 @@ func TestFireAppliesSetWithoutHandler(t *testing.T) {
 	}
 }
 
+func TestTextTokenResolution(t *testing.T) {
+	reg := NewRegistry()
+	reg.RegisterText("hello", func() string { return "你好" })
+	r := NewRenderer(reg)
+
+	if got := r.text("{{loc:hello}}"); got != "你好" {
+		t.Fatalf("registered token = %q, want 你好", got)
+	}
+	if got := r.text("{{loc:missing}}"); got != "{{loc:missing}}" {
+		t.Fatalf("unregistered token must pass through, got %q", got)
+	}
+	if got := r.text("plain text"); got != "plain text" {
+		t.Fatalf("plain literal must not change, got %q", got)
+	}
+	if got := r.text("{{loc:}}"); got != "{{loc:}}" {
+		t.Fatalf("empty key must pass through, got %q", got)
+	}
+}
+
 func TestVisibleIfParse(t *testing.T) {
 	doc := `{
 		"type": "row",
