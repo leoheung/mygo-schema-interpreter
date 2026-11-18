@@ -71,6 +71,11 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 	if n == nil {
 		return
 	}
+	if n.VisibleIf != nil {
+		if v, ok := r.lookup(n.VisibleIf, it); !ok || v != true {
+			return // the condition is false or unresolvable: skip the subtree
+		}
+	}
 	key := n.Key
 	if key == "" {
 		key = path

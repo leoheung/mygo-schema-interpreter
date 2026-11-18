@@ -55,6 +55,23 @@ func TestFireAppliesSetWithoutHandler(t *testing.T) {
 	}
 }
 
+func TestVisibleIfParse(t *testing.T) {
+	doc := `{
+		"type": "row",
+		"children": [
+			{"type": "text", "props": {"text": "badge"},
+			 "visibleIf": {"source": "home", "path": "Summoner.InGame"}}
+		]
+	}`
+	n, err := ParseSchema([]byte(doc))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if n.Children[0].VisibleIf == nil || n.Children[0].VisibleIf.Source != "home" {
+		t.Fatal("visibleIf must parse as a bind spec")
+	}
+}
+
 func TestFireUnknownIDStillAppliesSet(t *testing.T) {
 	r := NewRegistry() // 空 registry：未注册 id 降级跳过，set 照常
 	rd := NewRenderer(r)

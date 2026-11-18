@@ -58,6 +58,9 @@ type Node struct {
 	// Bind connects the node to a data source: text shows the value, image
 	// shows the bitmap, and a container with Items iterates a slice.
 	Bind *Bind `json:"bind,omitempty"`
+	// VisibleIf resolves a bool: the node (and its subtree) is skipped
+	// while it is false — badges, unranked placeholders, loading states.
+	VisibleIf *Bind `json:"visibleIf,omitempty"`
 	// Action is what a button fires when clicked.
 	Action *Action `json:"action,omitempty"`
 	// Children are drawn inside the node.
