@@ -56,17 +56,23 @@ type Props struct {
 	// Paint.
 	Background string      `json:"background,omitempty"`
 	Border     *BorderSpec `json:"border,omitempty"`
-	Opacity    *float32    `json:"opacity,omitempty"`
-	Clip       bool        `json:"clip,omitempty"`
-	Hidden     bool        `json:"hidden,omitempty"`
-	Absolute   bool        `json:"absolute,omitempty"`
-	Left       *float32    `json:"left,omitempty"`
-	Top        *float32    `json:"top,omitempty"`
+	// BorderBottom is the row-edge accent: a bottom-only border of the
+	// given width and color (win/loss rows carry one).
+	BorderBottom *BorderSpec `json:"borderBottom,omitempty"`
+	// Cursor is "pointer" for clickable-looking nodes; anything else is
+	// ignored.
+	Cursor  string  `json:"cursor,omitempty"`
+	Opacity *float32 `json:"opacity,omitempty"`
+	Clip    bool    `json:"clip,omitempty"`
+	Hidden  bool    `json:"hidden,omitempty"`
+	Absolute bool   `json:"absolute,omitempty"`
+	Left    *float32 `json:"left,omitempty"`
+	Top     *float32 `json:"top,omitempty"`
 
 	// Text style.
 	FontSize  *float32 `json:"fontSize,omitempty"`
 	Bold      bool     `json:"bold,omitempty"`
-	TextColor string   `json:"textColor,omitempty"`
+	TextColor string   `json:"textColor,omitempty"` // hex, or a host-registered token name
 
 	// Type-specific content.
 	Text        string   `json:"text,omitempty"`        // text, button
@@ -88,6 +94,20 @@ var alignValues = map[string]ui.Align{
 	"spaceAround":  ui.SpaceAround,
 	"spaceEvenly":  ui.SpaceEvenly,
 	"baseline":     ui.Baseline,
+}
+
+// resolveColor resolves a color spec: a host-registered token name first
+// (theme-aware), else "#hex" parsing. Invalid input is skipped, not fatal.
+func (g *Registry) resolveColor(c *ui.Context, spec string) (ui.Color, bool) {
+	if spec == "" {
+		return ui.Color{}, false
+	}
+	if g != nil {
+		if f := g.color(spec); f != nil {
+			return f(c), true
+		}
+	}
+	return parseColor(spec)
 }
 
 // parseColor converts a schema color string. It returns ok=false on invalid
@@ -124,8 +144,10 @@ func edges(v []float32) []float32 {
 }
 
 // applyProps chains a node's set properties onto a freshly built element
-// and returns the element for further chaining.
-func applyProps(el ui.Element, p *Props) ui.Element {
+// and returns the element for further chaining. Color strings resolve
+// through the registry's token table first (theme-aware, host-registered),
+// falling back to hex parsing.
+func (g *Registry) applyProps(c *ui.Context, el ui.Element, p *Props) ui.Element {
 	if p == nil {
 		return el
 	}
@@ -186,13 +208,21 @@ func applyProps(el ui.Element, p *Props) ui.Element {
 	if p.Center {
 		el = el.Center()
 	}
-	if c, ok := parseColor(p.Background); ok {
-		el = el.Background(c)
+	if c2, ok := g.resolveColor(c, p.Background); ok {
+		el = el.Background(c2)
 	}
 	if p.Border != nil {
-		if c, ok := parseColor(p.Border.Color); ok {
-			el = el.Border(p.Border.Width, c)
+		if col, ok := g.resolveColor(c, p.Border.Color); ok {
+			el = el.Border(p.Border.Width, col)
 		}
+	}
+	if p.BorderBottom != nil {
+		if col, ok := g.resolveColor(c, p.BorderBottom.Color); ok {
+			el = el.BorderWidth(0, 0, 0, p.BorderBottom.Width).BorderColor(col)
+		}
+	}
+	if p.Cursor == "pointer" {
+		el = el.Cursor(ui.CursorPointer)
 	}
 	if p.Opacity != nil {
 		el = el.Opacity(*p.Opacity)
@@ -218,8 +248,8 @@ func applyProps(el ui.Element, p *Props) ui.Element {
 	if p.Bold {
 		el = el.Bold()
 	}
-	if c, ok := parseColor(p.TextColor); ok {
-		el = el.TextColor(c)
+	if col, ok := g.resolveColor(c, p.TextColor); ok {
+		el = el.TextColor(col)
 	}
 	if p.Placeholder != "" {
 		el = el.Placeholder(p.Placeholder)

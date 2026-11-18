@@ -21,16 +21,21 @@ type ProviderFunc func() any
 // renderer's state store and kick off host work.
 type ActionFunc func(r *Renderer, args map[string]any)
 
-// Registry holds the host's three tables: composite components, data-source
-// providers and actions. A schema references them by name; registering the
-// same name overwrites. All methods are safe for concurrent use, though the
-// usual pattern is registering everything up front and only looking up while
-// drawing.
+// ColorFunc resolves a color token at draw time; it may read the context's
+// palette, so a token stays correct across theme switches.
+type ColorFunc func(c *ui.Context) ui.Color
+
+// Registry holds the host's tables: composite components, data-source
+// providers, actions and color tokens. A schema references them by name;
+// registering the same name overwrites. All methods are safe for concurrent
+// use, though the usual pattern is registering everything up front and only
+// looking up while drawing.
 type Registry struct {
 	mu         sync.RWMutex
 	components map[string]ComponentFunc
 	providers  map[string]ProviderFunc
 	actions    map[string]ActionFunc
+	colors     map[string]ColorFunc
 }
 
 // NewRegistry returns an empty registry.
@@ -39,6 +44,7 @@ func NewRegistry() *Registry {
 		components: make(map[string]ComponentFunc),
 		providers:  make(map[string]ProviderFunc),
 		actions:    make(map[string]ActionFunc),
+		colors:     make(map[string]ColorFunc),
 	}
 }
 
@@ -61,6 +67,22 @@ func (g *Registry) RegisterAction(id string, f ActionFunc) {
 	g.mu.Lock()
 	g.actions[id] = f
 	g.mu.Unlock()
+}
+
+// RegisterColor registers a color token schemas may use wherever a color
+// string is accepted (background, border, text): "textMuted" and friends
+// resolve to the host's current theme palette.
+func (g *Registry) RegisterColor(name string, f ColorFunc) {
+	g.mu.Lock()
+	g.colors[name] = f
+	g.mu.Unlock()
+}
+
+func (g *Registry) color(name string) ColorFunc {
+	g.mu.RLock()
+	f := g.colors[name]
+	g.mu.RUnlock()
+	return f
 }
 
 func (g *Registry) component(id string) ComponentFunc {

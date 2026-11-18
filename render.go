@@ -79,19 +79,23 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 
 	switch n.Type {
 	case TypeColumn:
-		applyProps(ui.Column(kc), &n.Props).Children(func() {
+		r.reg.applyProps(c, ui.Column(kc), &n.Props).Children(func() {
 			r.drawContent(c, n, path, it)
 		})
 	case TypeRow:
-		applyProps(ui.Row(kc), &n.Props).Children(func() {
+		el := r.reg.applyProps(c, ui.Row(kc), &n.Props)
+		r.clickable(c, el, n)
+		el.Children(func() {
 			r.drawContent(c, n, path, it)
 		})
 	case TypeBox:
-		applyProps(ui.Box(kc), &n.Props).Children(func() {
+		el := r.reg.applyProps(c, ui.Box(kc), &n.Props)
+		r.clickable(c, el, n)
+		el.Children(func() {
 			r.drawContent(c, n, path, it)
 		})
 	case TypeScroll:
-		applyProps(ui.Scroll(kc), &n.Props).Children(func() {
+		r.reg.applyProps(c, ui.Scroll(kc), &n.Props).Children(func() {
 			r.drawContent(c, n, path, it)
 		})
 	case TypeText:
@@ -99,15 +103,15 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 		if v, ok := r.lookup(n.Bind, it); ok {
 			text = toText(v)
 		}
-		applyProps(ui.Text(kc, text), &n.Props)
+		r.reg.applyProps(c, ui.Text(kc, text), &n.Props)
 	case TypeImage:
 		if src := r.resolveImage(n, it); src != nil {
-			applyProps(ui.Image(kc, src), &n.Props)
+			r.reg.applyProps(c, ui.Image(kc, src), &n.Props)
 		} else {
 			r.drawFallback(c, "image: no source")
 		}
 	case TypeButton:
-		btn := applyProps(ui.Button(kc, n.Props.Text), &n.Props)
+		btn := r.reg.applyProps(c, ui.Button(kc, n.Props.Text), &n.Props)
 		btn.Children(func() {
 			r.drawContent(c, n, path, it)
 		})
@@ -115,17 +119,17 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 			r.fire(c, n.Action)
 		}
 	case TypeTextInput:
-		applyProps(ui.TextInput(kc, r.state.StringPtr(key, n.Props.Value)), &n.Props)
+		r.reg.applyProps(c, ui.TextInput(kc, r.state.StringPtr(key, n.Props.Value)), &n.Props)
 	case TypeCheckbox:
-		applyProps(ui.Checkbox(kc, r.state.BoolPtr(key), n.Props.Label), &n.Props)
+		r.reg.applyProps(c, ui.Checkbox(kc, r.state.BoolPtr(key), n.Props.Label), &n.Props)
 	case TypeSelect:
-		applyProps(ui.Select(kc, r.state.StringPtr(key, n.Props.Value), n.Props.Options), &n.Props)
+		r.reg.applyProps(c, ui.Select(kc, r.state.StringPtr(key, n.Props.Value), n.Props.Options), &n.Props)
 	case TypeSpinner:
-		applyProps(ui.Spinner(kc), &n.Props)
+		r.reg.applyProps(c, ui.Spinner(kc), &n.Props)
 	case TypeDivider:
-		applyProps(ui.Divider(kc), &n.Props)
+		r.reg.applyProps(c, ui.Divider(kc), &n.Props)
 	case TypeSpacer:
-		applyProps(ui.Spacer(kc), &n.Props)
+		r.reg.applyProps(c, ui.Spacer(kc), &n.Props)
 	case TypeModal:
 		// The overlay follows the bool state at stateKey (the node's own
 		// key when unset); buttons open and close it by writing that state.
@@ -133,7 +137,7 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 		if openKey == "" {
 			openKey = key
 		}
-		applyProps(ui.Modal(kc, r.state.BoolPtr(openKey), func() {
+		r.reg.applyProps(c, ui.Modal(kc, r.state.BoolPtr(openKey), func() {
 			r.drawContent(c, n, path, it)
 		}), &n.Props)
 	case TypeComponent:
@@ -229,6 +233,18 @@ func (r *Renderer) fireToast(c *ui.Context, t *ActionToast) {
 		Type:        t.Type,
 		Timeout:     duration,
 	})
+}
+
+// clickable wires a container's optional action: a pointer cursor and the
+// click firing it — a row or box acts as a button without button styling.
+func (r *Renderer) clickable(c *ui.Context, el ui.Element, n *Node) {
+	if n.Action == nil {
+		return
+	}
+	el.Cursor(ui.CursorPointer)
+	if el.Clicked() {
+		r.fire(c, n.Action)
+	}
 }
 
 // drawFallback draws a small muted placeholder box with a note, the one
