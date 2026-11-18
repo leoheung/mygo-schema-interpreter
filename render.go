@@ -89,12 +89,14 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 		})
 	case TypeRow:
 		el := r.reg.applyProps(c, ui.Row(kc), &n.Props)
+		el = r.bindPaint(c, el, n, it)
 		r.clickable(c, el, n)
 		el.Children(func() {
 			r.drawContent(c, n, path, it)
 		})
 	case TypeBox:
 		el := r.reg.applyProps(c, ui.Box(kc), &n.Props)
+		el = r.bindPaint(c, el, n, it)
 		r.clickable(c, el, n)
 		el.Children(func() {
 			r.drawContent(c, n, path, it)
@@ -238,6 +240,26 @@ func (r *Renderer) fireToast(c *ui.Context, t *ActionToast) {
 		Type:        t.Type,
 		Timeout:     duration,
 	})
+}
+
+// bindPaint applies the data-bound paint overrides: BackgroundBind and
+// BorderEdgeBind each resolve to a color string (token or hex).
+func (r *Renderer) bindPaint(c *ui.Context, el ui.Element, n *Node, it *iteration) ui.Element {
+	if n.Props.BackgroundBind != nil {
+		if v, ok := r.lookup(n.Props.BackgroundBind, it); ok {
+			if col, ok := r.reg.resolveColor(c, toText(v)); ok {
+				el = el.Background(col)
+			}
+		}
+	}
+	if n.Props.BorderEdgeBind != nil {
+		if v, ok := r.lookup(n.Props.BorderEdgeBind, it); ok {
+			if col, ok := r.reg.resolveColor(c, toText(v)); ok {
+				el = el.BorderWidth(0, 0, 0, 4).BorderColor(col)
+			}
+		}
+	}
+	return el
 }
 
 // clickable wires a container's optional action: a pointer cursor and the

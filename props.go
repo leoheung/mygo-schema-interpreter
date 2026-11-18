@@ -27,6 +27,8 @@ type Props struct {
 	// parent's main axis.
 	Width     *float32 `json:"width,omitempty"`
 	Height    *float32 `json:"height,omitempty"`
+	// WidthPercent sizes against the parent's width in percent (0..100).
+	WidthPercent *float32 `json:"widthPercent,omitempty"`
 	MinWidth  *float32 `json:"minWidth,omitempty"`
 	MaxWidth  *float32 `json:"maxWidth,omitempty"`
 	MinHeight *float32 `json:"minHeight,omitempty"`
@@ -54,8 +56,14 @@ type Props struct {
 	Center     bool   `json:"center,omitempty"` // Center() shorthand
 
 	// Paint.
-	Background string      `json:"background,omitempty"`
-	Border     *BorderSpec `json:"border,omitempty"`
+	Background string `json:"background,omitempty"`
+	// BackgroundBind resolves to a color string (a host token name or hex)
+	// at draw time — a win/loss row paints itself from its data.
+	BackgroundBind *Bind `json:"backgroundBind,omitempty"`
+	// BorderEdgeBind resolves to a color string for a 4-wide bottom edge
+	// (the row accent), data-driven like BackgroundBind.
+	BorderEdgeBind *Bind      `json:"borderEdgeBind,omitempty"`
+	Border         *BorderSpec `json:"border,omitempty"`
 	// BorderBottom is the row-edge accent: a bottom-only border of the
 	// given width and color (win/loss rows carry one).
 	BorderBottom *BorderSpec `json:"borderBottom,omitempty"`
@@ -153,6 +161,9 @@ func (g *Registry) applyProps(c *ui.Context, el ui.Element, p *Props) ui.Element
 	}
 	if p.Width != nil {
 		el = el.Width(*p.Width)
+	}
+	if p.WidthPercent != nil {
+		el = el.WidthPercent(*p.WidthPercent)
 	}
 	if p.Height != nil {
 		el = el.Height(*p.Height)
