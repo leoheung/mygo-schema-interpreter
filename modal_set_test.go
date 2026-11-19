@@ -113,6 +113,30 @@ func TestResolveActionItemPath(t *testing.T) {
 	}
 }
 
+func TestToastHandlerHook(t *testing.T) {
+	reg := NewRegistry()
+	reg.RegisterText("hi", func() string { return "你好" })
+	var got *ui.Toast
+	reg.RegisterToast(func(t ui.Toast) { got = &t })
+	r := NewRenderer(reg)
+
+	*r.State().StringPtr("name", "") = "世界"
+	r.fireToast(nil, &ActionToast{Title: "{{loc:hi}}", Description: "{{name}}", Type: "success"})
+
+	if got == nil {
+		t.Fatal("registered toast handler must receive the toast")
+	}
+	if got.Title != "你好" {
+		t.Fatalf("title = %q, want 你好 (loc resolved)", got.Title)
+	}
+	if got.Description != "世界" {
+		t.Fatalf("description = %q, want 世界 (state expanded)", got.Description)
+	}
+	if got.Type != "success" {
+		t.Fatalf("type = %q, want success", got.Type)
+	}
+}
+
 func TestVisibleIfParse(t *testing.T) {
 	doc := `{
 		"type": "row",

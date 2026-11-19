@@ -30,6 +30,13 @@ type ColorFunc func(c *ui.Context) ui.Color
 // language switches.
 type TextFunc func() string
 
+// ToastFunc receives a fully-resolved toast (loc tokens and state templates
+// already expanded) for the host to render its own way — through the app's
+// own toast system, for instance. Registering one takes over toast
+// rendering; without a registration, toasts go through mygo's built-in
+// AddToast.
+type ToastFunc func(t ui.Toast)
+
 // Registry holds the host's tables: composite components, data-source
 // providers, actions, color tokens and text tokens. A schema references
 // them by name; registering the same name overwrites. All methods are safe
@@ -42,6 +49,7 @@ type Registry struct {
 	actions    map[string]ActionFunc
 	colors     map[string]ColorFunc
 	texts      map[string]TextFunc
+	toast      ToastFunc
 }
 
 // NewRegistry returns an empty registry.
@@ -104,6 +112,22 @@ func (g *Registry) RegisterText(key string, f TextFunc) {
 func (g *Registry) text(key string) TextFunc {
 	g.mu.RLock()
 	f := g.texts[key]
+	g.mu.RUnlock()
+	return f
+}
+
+// RegisterToast registers the host's toast renderer. With one registered,
+// every schema toast is handed to it fully resolved; without one, toasts
+// render through mygo's built-in AddToast.
+func (g *Registry) RegisterToast(f ToastFunc) {
+	g.mu.Lock()
+	g.toast = f
+	g.mu.Unlock()
+}
+
+func (g *Registry) toastHandler() ToastFunc {
+	g.mu.RLock()
+	f := g.toast
 	g.mu.RUnlock()
 	return f
 }

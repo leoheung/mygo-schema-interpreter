@@ -240,21 +240,31 @@ func (r *Renderer) fire(c *ui.Context, a *Action) {
 	}
 }
 
-// fireToast sends a toast through the mygo engine. Title and Description
-// first resolve their {{loc:key}} tokens (the host's i18n), then expand
-// {{stateKey}} templates against the state store — loc first, because the
-// state expander would blank an unknown {{...}} key. DurationMs zero means
-// the mygo default (4s); the toast ID re-uses the title so repeated clicks
-// overwrite instead of stacking.
+// fireToast sends a toast: Title and Description first resolve their
+// {{loc:key}} tokens (the host's i18n), then {{stateKey}} templates expand
+// against the state store — loc first, because the state expander would
+// blank an unknown {{...}} key. The fully-resolved toast then goes to the
+// host's registered toast renderer when there is one, mygo's built-in
+// AddToast otherwise. DurationMs zero means the mygo default (4s); the
+// toast ID re-uses the title so repeated clicks overwrite instead of
+// stacking.
 func (r *Renderer) fireToast(c *ui.Context, t *ActionToast) {
 	duration := time.Duration(t.DurationMs) * time.Millisecond
-	c.AddToast(ui.Toast{
+	toast := ui.Toast{
 		ID:          t.Title,
 		Title:       expandStateTemplate(r.text(t.Title), r.state),
 		Description: expandStateTemplate(r.text(t.Description), r.state),
 		Type:        t.Type,
 		Timeout:     duration,
-	})
+	}
+	if h := r.reg.toastHandler(); h != nil {
+		h(toast)
+		return
+	}
+	if c == nil {
+		return
+	}
+	c.AddToast(toast)
 }
 
 // FireAction fires a schema action from host code — the entry composite
