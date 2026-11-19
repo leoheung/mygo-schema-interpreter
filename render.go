@@ -91,6 +91,7 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 	case TypeRow:
 		el := r.reg.applyProps(c, ui.Row(kc), &n.Props)
 		el = r.bindPaint(c, el, n, it)
+		el = r.hoverPaint(c, el, n, it)
 		r.clickable(c, el, n, it)
 		el.Children(func() {
 			r.drawContent(c, n, path, it)
@@ -98,6 +99,7 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 	case TypeBox:
 		el := r.reg.applyProps(c, ui.Box(kc), &n.Props)
 		el = r.bindPaint(c, el, n, it)
+		el = r.hoverPaint(c, el, n, it)
 		r.clickable(c, el, n, it)
 		el.Children(func() {
 			r.drawContent(c, n, path, it)
@@ -165,6 +167,12 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 			}
 		}
 		if f := r.reg.component(n2.ComponentID); f != nil {
+			a := r.resolveAction(n2.Action, it)
+			if a != n2.Action {
+				cp := *n2
+				cp.Action = a
+				n2 = &cp
+			}
 			f(c, r, n2)
 			return
 		}
@@ -292,28 +300,59 @@ func (r *Renderer) bindPaint(c *ui.Context, el ui.Element, n *Node, it *iteratio
 	return el
 }
 
+// hoverPaint applies the data-bound hover shade: while the pointer is over
+// the element, HoverBackgroundBind overrides the base background — the
+// immediate-mode counterpart of the native "if hovered, repaint" idiom.
+func (r *Renderer) hoverPaint(c *ui.Context, el ui.Element, n *Node, it *iteration) ui.Element {
+	if n.Props.HoverBackgroundBind != nil && el.Hovered() {
+		if v, ok := r.lookup(n.Props.HoverBackgroundBind, it); ok {
+			if col, ok := r.reg.resolveColor(c, toText(v)); ok {
+				el = el.Background(col)
+			}
+		}
+	}
+	return el
+}
+
+// resolveAction substitutes iteration-dependent args: "$index" becomes the
+// item's position, "$item.<path>" resolves a value off the current item
+// (rendered as text). Called before the host sees the action — both from
+// clickable rows and from composite components drawn inside an iteration.
+func (r *Renderer) resolveAction(a *Action, it *iteration) *Action {
+	if a == nil || it == nil || len(a.Args) == 0 {
+		return a
+	}
+	args := make(map[string]any, len(a.Args))
+	changed := false
+	for k, v := range a.Args {
+		if s, ok := v.(string); ok {
+			switch {
+			case s == "$index":
+				v, changed = it.index, true
+			case strings.HasPrefix(s, "$item."):
+				if val, ok := r.lookup(&Bind{Source: SourceItem, Path: strings.TrimPrefix(s, "$item.")}, it); ok {
+					v, changed = toText(val), true
+				}
+			}
+		}
+		args[k] = v
+	}
+	if !changed {
+		return a
+	}
+	return &Action{ID: a.ID, Args: args, Set: a.Set, Toast: a.Toast}
+}
+
 // clickable wires a container's optional action: a pointer cursor and the
 // click firing it — a row or box acts as a button without button styling.
-// Inside an items iteration, an args value of "$index" becomes the item's
-// position, so a row's click can name itself.
+// Iteration-dependent args are resolved against the current item first.
 func (r *Renderer) clickable(c *ui.Context, el ui.Element, n *Node, it *iteration) {
 	if n.Action == nil {
 		return
 	}
 	el.Cursor(ui.CursorPointer)
 	if el.Clicked() {
-		a := n.Action
-		if it != nil && len(a.Args) > 0 {
-			args := make(map[string]any, len(a.Args))
-			for k, v := range a.Args {
-				if s, ok := v.(string); ok && s == "$index" {
-					v = it.index
-				}
-				args[k] = v
-			}
-			a = &Action{ID: a.ID, Args: args, Set: a.Set, Toast: a.Toast}
-		}
-		r.fire(c, a)
+		r.fire(c, r.resolveAction(n.Action, it))
 	}
 }
 

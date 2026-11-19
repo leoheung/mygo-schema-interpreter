@@ -87,6 +87,32 @@ func TestTextTokenResolution(t *testing.T) {
 	}
 }
 
+func TestResolveActionItemPath(t *testing.T) {
+	r := NewRenderer(nil)
+	r.Registry().RegisterAction("noop", func(_ *Renderer, _ map[string]any) {})
+
+	it := &iteration{value: map[string]any{"RiotID": "玩家#54192"}, index: 2}
+	a := r.resolveAction(&Action{
+		ID:   "noop",
+		Args: map[string]any{"name": "$item.RiotID", "index": "$index", "keep": "plain"},
+	}, it)
+
+	if a.Args["name"] != "玩家#54192" {
+		t.Fatalf("name = %v, want resolved riot id", a.Args["name"])
+	}
+	if a.Args["index"] != 2 {
+		t.Fatalf("index = %v, want 2", a.Args["index"])
+	}
+	if a.Args["keep"] != "plain" {
+		t.Fatalf("plain arg must pass through, got %v", a.Args["keep"])
+	}
+
+	// 无迭代上下文：原样返回
+	if got := r.resolveAction(a, nil); got != a {
+		t.Fatal("nil iteration must return the action untouched")
+	}
+}
+
 func TestVisibleIfParse(t *testing.T) {
 	doc := `{
 		"type": "row",

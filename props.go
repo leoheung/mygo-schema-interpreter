@@ -63,8 +63,11 @@ type Props struct {
 	BackgroundBind *Bind `json:"backgroundBind,omitempty"`
 	// BorderEdgeBind resolves to a color string for a 4-wide bottom edge
 	// (the row accent), data-driven like BackgroundBind.
-	BorderEdgeBind *Bind       `json:"borderEdgeBind,omitempty"`
-	Border         *BorderSpec `json:"border,omitempty"`
+	BorderEdgeBind *Bind `json:"borderEdgeBind,omitempty"`
+	// HoverBackgroundBind resolves to a color string used while the pointer
+	// is over the element — the row's data decides its hover shade.
+	HoverBackgroundBind *Bind       `json:"hoverBackgroundBind,omitempty"`
+	Border              *BorderSpec `json:"border,omitempty"`
 	// BorderBottom is the row-edge accent: a bottom-only border of the
 	// given width and color (win/loss rows carry one).
 	BorderBottom *BorderSpec `json:"borderBottom,omitempty"`
