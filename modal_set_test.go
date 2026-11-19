@@ -2,6 +2,8 @@ package schemaui
 
 import (
 	"testing"
+
+	"github.com/egoist/mygo/ui"
 )
 
 // v0.2：modal 原语与 action.set 的解析与纯逻辑语义（不画 UI）。
