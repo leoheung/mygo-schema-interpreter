@@ -27,6 +27,11 @@ type Renderer struct {
 	root  atomic.Pointer[Node]
 	reg   *Registry
 	state *StateStore
+	// frameProviders 具名 source 的当前帧解析值（UI 线程独占，无锁——
+	// lookup 只在 Draw 链上被调）。Draw 开帧清空；fire 在帧中途写 state
+	// 后也清——后续 lookup 重读 provider，动作的同帧效果（modal 内容、
+	// 翻页）不因缓存滞后一帧。
+	frameProviders map[string]any
 }
 
 // NewRenderer returns a renderer drawing through reg's tables. A nil registry
@@ -36,7 +41,7 @@ func NewRenderer(reg *Registry) *Renderer {
 	if reg == nil {
 		reg = NewRegistry()
 	}
-	return &Renderer{reg: reg, state: newStateStore()}
+	return &Renderer{reg: reg, state: newStateStore(), frameProviders: map[string]any{}}
 }
 
 // SetSchema swaps the tree to draw. Safe from any goroutine; the new tree
@@ -57,12 +62,23 @@ func (r *Renderer) Registry() *Registry { return r.reg }
 // Draw draws the current schema tree. Call it from the page's view function
 // every frame, like any mygo widget. With no schema set it draws a spinner.
 func (r *Renderer) Draw(c *ui.Context) {
+	// 开帧先清缓存——early-return 的帧（spinner）也不让快照跨帧残留。
+	r.beginFrame()
 	root := r.root.Load()
 	if root == nil {
 		ui.Spinner(c)
 		return
 	}
 	r.drawNode(c, root, "0", nil)
+}
+
+// beginFrame 开始新的一帧：清空具名 provider 的帧缓存（delete 复用 map，
+// 不重新分配）。fire 在帧中途写 state 后也调用——后续 lookup 必须重读
+// provider，动作的同帧效果（modal 内容、翻页）不因缓存滞后一帧。
+func (r *Renderer) beginFrame() {
+	for k := range r.frameProviders {
+		delete(r.frameProviders, k)
+	}
 }
 
 // drawNode draws one node at a tree path under an enclosing iteration. The
@@ -222,6 +238,10 @@ func (r *Renderer) fire(c *ui.Context, a *Action) {
 	if a == nil {
 		return
 	}
+	// handler 与 Set 都可能写 state（宿主 handler 常绕过 setter 直写
+	// StateStore），provider 帧缓存必须先于两者作废——后续同帧 lookup
+	// 重读 provider，点击的当帧效果（modal 内容、翻页）不滞后。
+	r.beginFrame()
 	if a.ID != "" {
 		if f := r.reg.action(a.ID); f != nil {
 			f(r, a.Args)

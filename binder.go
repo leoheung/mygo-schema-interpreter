@@ -35,11 +35,18 @@ func (r *Renderer) lookup(b *Bind, it *iteration) (any, bool) {
 		}
 		v = it.value
 	} else {
-		p := r.reg.provider(b.Source)
-		if p == nil {
-			return nil, false
+		// 帧内同 source 的解析值只取一次 provider()：Draw 是同步的单帧
+		// 快照，state 不在帧中途变（fire 写 state 时会清本缓存）。
+		if cv, ok := r.frameProviders[b.Source]; ok {
+			v = cv
+		} else {
+			p := r.reg.provider(b.Source)
+			if p == nil {
+				return nil, false // 未注册不缓存，每次照查 registry
+			}
+			v = p()
+			r.frameProviders[b.Source] = v // nil 返回值也缓存：行为一致
 		}
-		v = p()
 	}
 	for _, seg := range splitPath(b.Path) {
 		v = step(v, seg)
