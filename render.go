@@ -131,10 +131,11 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 		}
 		r.reg.applyProps(c, ui.Text(kc, text), &n.Props)
 	case TypeImage:
+		// 原生对齐：ui.Image(nil) 画空——数据缺席（如某局没有技能资源）
+		// 静默跳过，不画调试占位；契约违规的 fallback 只留给
+		// component/unknown type。
 		if src := r.resolveImage(n, it); src != nil {
 			r.reg.applyProps(c, ui.Image(kc, src), &n.Props)
-		} else {
-			r.drawFallback(c, "image: no source")
 		}
 	case TypeButton:
 		btn := r.reg.applyProps(c, ui.Button(kc, r.text(n.Props.Text)), &n.Props)
