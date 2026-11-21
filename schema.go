@@ -61,6 +61,10 @@ type Node struct {
 	// VisibleIf resolves a bool: the node (and its subtree) is skipped
 	// while it is false — badges, unranked placeholders, loading states.
 	VisibleIf *Bind `json:"visibleIf,omitempty"`
+	// HoverOnly draws the node only while the pointer is over its parent
+	// container — a card's floating action that appears on hover. Without
+	// a hoverable parent (or while not hovered) the node is skipped.
+	HoverOnly bool `json:"hoverOnly,omitempty"`
 	// Action is what a button fires when clicked.
 	Action *Action `json:"action,omitempty"`
 	// Children are drawn inside the node.

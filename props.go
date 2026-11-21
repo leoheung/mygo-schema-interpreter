@@ -67,7 +67,12 @@ type Props struct {
 	// HoverBackgroundBind resolves to a color string used while the pointer
 	// is over the element — the row's data decides its hover shade.
 	HoverBackgroundBind *Bind       `json:"hoverBackgroundBind,omitempty"`
-	Border              *BorderSpec `json:"border,omitempty"`
+	// BorderColorBind resolves to a color string for a full border of
+	// props.border.width (or 1) — a card's premade outline whose presence
+	// and shade come from the data. Applied at draw time like the other
+	// binds (Renderer.bindPaint); an unresolvable value draws no border.
+	BorderColorBind *Bind       `json:"borderColorBind,omitempty"`
+	Border          *BorderSpec `json:"border,omitempty"`
 	// BorderBottom is the row-edge accent: a bottom-only border of the
 	// given width and color (win/loss rows carry one).
 	BorderBottom *BorderSpec `json:"borderBottom,omitempty"`
@@ -87,6 +92,14 @@ type Props struct {
 	FontSize  *float32 `json:"fontSize,omitempty"`
 	Bold      bool     `json:"bold,omitempty"`
 	TextColor string   `json:"textColor,omitempty"` // hex, or a host-registered token name
+	// TextColorBind resolves to a color string (a host token name or hex)
+	// at draw time — a history row's verdict color, a label chip's shade.
+	TextColorBind *Bind `json:"textColorBind,omitempty"`
+	// SingleLine clips the text to one line instead of wrapping (a player
+	// id); Wrap forces line breaking on a long note. Both only affect text
+	// nodes; the mygo method is applied when the element supports it.
+	SingleLine bool `json:"singleLine,omitempty"`
+	Wrap       bool `json:"wrap,omitempty"`
 
 	// Type-specific content.
 	Text        string   `json:"text,omitempty"`        // text, button
@@ -279,6 +292,12 @@ func (g *Registry) applyProps(c *ui.Context, el ui.Element, p *Props) ui.Element
 	}
 	if col, ok := g.resolveColor(c, p.TextColor); ok {
 		el = el.TextColor(col)
+	}
+	if p.SingleLine {
+		el = el.SingleLine()
+	}
+	if p.Wrap {
+		el = el.Wrap()
 	}
 	if p.Placeholder != "" {
 		el = el.Placeholder(p.Placeholder)

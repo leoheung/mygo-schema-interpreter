@@ -69,8 +69,12 @@ func (r *Renderer) Draw(c *ui.Context) {
 		ui.Spinner(c)
 		return
 	}
-	r.drawNode(c, root, "0", nil)
+	r.drawNode(c, root, "0", nil, nil)
 }
+
+// hoverState reports whether the pointer is over the enclosing container;
+// nil where there is no hoverable parent (the root, a modal overlay).
+type hoverState func() bool
 
 // beginFrame 开始新的一帧：清空具名 provider 的帧缓存（delete 复用 map，
 // 不重新分配）。fire 在帧中途写 state 后也调用——后续 lookup 必须重读
@@ -84,7 +88,9 @@ func (r *Renderer) beginFrame() {
 // drawNode draws one node at a tree path under an enclosing iteration. The
 // node's key for cross-frame state is its explicit Key when set, else the
 // path, so a stable schema keeps input and scroll state across frames.
-func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) {
+// hover is the enclosing container's hover state, needed by hover-only
+// nodes (nil at the root, where hover-only makes no sense).
+func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration, hover hoverState) {
 	if n == nil {
 		return
 	}
@@ -92,6 +98,9 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 		if v, ok := r.lookup(n.VisibleIf, it); !ok || v != true {
 			return // the condition is false or unresolvable: skip the subtree
 		}
+	}
+	if n.HoverOnly && (hover == nil || !hover()) {
+		return // no hoverable parent, or the pointer is elsewhere
 	}
 	key := n.Key
 	if key == "" {
@@ -101,8 +110,9 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 
 	switch n.Type {
 	case TypeColumn:
-		r.reg.applyProps(c, ui.Column(kc), &n.Props).Children(func() {
-			r.drawContent(c, n, path, it)
+		el := r.reg.applyProps(c, ui.Column(kc), &n.Props)
+		el.Children(func() {
+			r.drawContent(c, n, path, it, el.Hovered)
 		})
 	case TypeRow:
 		el := r.reg.applyProps(c, ui.Row(kc), &n.Props)
@@ -110,7 +120,7 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 		el = r.hoverPaint(c, el, n, it)
 		r.clickable(c, el, n, it)
 		el.Children(func() {
-			r.drawContent(c, n, path, it)
+			r.drawContent(c, n, path, it, el.Hovered)
 		})
 	case TypeBox:
 		el := r.reg.applyProps(c, ui.Box(kc), &n.Props)
@@ -118,18 +128,26 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 		el = r.hoverPaint(c, el, n, it)
 		r.clickable(c, el, n, it)
 		el.Children(func() {
-			r.drawContent(c, n, path, it)
+			r.drawContent(c, n, path, it, el.Hovered)
 		})
 	case TypeScroll:
-		r.reg.applyProps(c, ui.Scroll(kc), &n.Props).Children(func() {
-			r.drawContent(c, n, path, it)
+		el := r.reg.applyProps(c, ui.Scroll(kc), &n.Props)
+		el.Children(func() {
+			r.drawContent(c, n, path, it, el.Hovered)
 		})
 	case TypeText:
 		text := r.text(n.Props.Text)
 		if v, ok := r.lookup(n.Bind, it); ok {
 			text = toText(v)
 		}
-		r.reg.applyProps(c, ui.Text(kc, text), &n.Props)
+		el := r.reg.applyProps(c, ui.Text(kc, text), &n.Props)
+		if n.Props.TextColorBind != nil {
+			if v, ok := r.lookup(n.Props.TextColorBind, it); ok {
+				if col, ok := r.reg.resolveColor(c, toText(v)); ok {
+					el = el.TextColor(col)
+				}
+			}
+		}
 	case TypeImage:
 		// 原生对齐：ui.Image(nil) 画空——数据缺席（如某局没有技能资源）
 		// 静默跳过，不画调试占位；契约违规的 fallback 只留给
@@ -140,7 +158,7 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 	case TypeButton:
 		btn := r.reg.applyProps(c, ui.Button(kc, r.text(n.Props.Text)), &n.Props)
 		btn.Children(func() {
-			r.drawContent(c, n, path, it)
+			r.drawContent(c, n, path, it, btn.Hovered)
 		})
 		if btn.Clicked() {
 			r.fire(c, n.Action)
@@ -169,7 +187,7 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 			openKey = key
 		}
 		r.reg.applyProps(c, ui.Modal(kc, r.state.BoolPtr(openKey), func() {
-			r.drawContent(c, n, path, it)
+			r.drawContent(c, n, path, it, nil) // modal overlay: no hover parent
 		}), &n.Props)
 	case TypeComponent:
 		n2 := n
@@ -201,19 +219,21 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration) 
 
 // drawContent draws a container's content: with a bind and item templates it
 // iterates the bound slice and draws the templates with "$item" resolving to
-// each element; otherwise it draws the plain children.
-func (r *Renderer) drawContent(c *ui.Context, n *Node, path string, it *iteration) {
+// each element; otherwise it draws the plain children. hover is the
+// container's hover state (for hover-only nodes; nil without a hoverable
+// parent).
+func (r *Renderer) drawContent(c *ui.Context, n *Node, path string, it *iteration, hover hoverState) {
 	if n.Bind != nil && len(n.Items) > 0 {
 		for i, item := range r.lookupSlice(n.Bind, it) {
 			child := &iteration{parent: it, value: item, index: i}
 			for j := range n.Items {
-				r.drawNode(c, &n.Items[j], path+"."+itoa(i)+"."+itoa(j), child)
+				r.drawNode(c, &n.Items[j], path+"."+itoa(i)+"."+itoa(j), child, hover)
 			}
 		}
 		return
 	}
 	for i := range n.Children {
-		r.drawNode(c, &n.Children[i], path+"."+itoa(i), it)
+		r.drawNode(c, &n.Children[i], path+"."+itoa(i), it, hover)
 	}
 }
 
@@ -311,8 +331,9 @@ func (r *Renderer) text(s string) string {
 	return s
 }
 
-// bindPaint applies the data-bound paint overrides: BackgroundBind and
-// BorderEdgeBind each resolve to a color string (token or hex).
+// bindPaint applies the data-bound paint overrides: BackgroundBind,
+// BorderEdgeBind and BorderColorBind each resolve to a color string (token
+// or hex).
 func (r *Renderer) bindPaint(c *ui.Context, el ui.Element, n *Node, it *iteration) ui.Element {
 	if n.Props.BackgroundBind != nil {
 		if v, ok := r.lookup(n.Props.BackgroundBind, it); ok {
@@ -325,6 +346,17 @@ func (r *Renderer) bindPaint(c *ui.Context, el ui.Element, n *Node, it *iteratio
 		if v, ok := r.lookup(n.Props.BorderEdgeBind, it); ok {
 			if col, ok := r.reg.resolveColor(c, toText(v)); ok {
 				el = el.BorderWidth(0, 0, 0, 4).BorderColor(col)
+			}
+		}
+	}
+	if n.Props.BorderColorBind != nil {
+		if v, ok := r.lookup(n.Props.BorderColorBind, it); ok {
+			if col, ok := r.reg.resolveColor(c, toText(v)); ok {
+				w := float32(1)
+				if n.Props.Border != nil {
+					w = n.Props.Border.Width
+				}
+				el = el.BorderWidth(w).BorderColor(col)
 			}
 		}
 	}
