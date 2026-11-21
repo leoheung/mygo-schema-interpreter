@@ -24,6 +24,7 @@ import "encoding/json"
 const (
 	TypeColumn    = "column"    // ui.Column, children top to bottom
 	TypeRow       = "row"       // ui.Row, children left to right
+	TypeGrid      = "grid"      // ui.Grid, fixed column count, children fill cells
 	TypeBox       = "box"       // ui.Box, the generic container
 	TypeScroll    = "scroll"    // ui.Scroll, scrollable child
 	TypeText      = "text"      // ui.Text

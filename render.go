@@ -135,6 +135,14 @@ func (r *Renderer) drawNode(c *ui.Context, n *Node, path string, it *iteration, 
 		el.Children(func() {
 			r.drawContent(c, n, path, it, el.Hovered)
 		})
+	case TypeGrid:
+		el := r.reg.applyProps(c, ui.Grid(kc), &n.Props)
+		if n.Props.Columns != nil {
+			el = el.Columns(*n.Props.Columns)
+		}
+		el.Children(func() {
+			r.drawContent(c, n, path, it, el.Hovered)
+		})
 	case TypeText:
 		text := r.text(n.Props.Text)
 		if v, ok := r.lookup(n.Bind, it); ok {

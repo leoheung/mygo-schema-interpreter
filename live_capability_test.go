@@ -46,3 +46,25 @@ func TestLivePageCapabilityParse(t *testing.T) {
 		t.Fatal("border width must parse alongside borderColorBind")
 	}
 }
+
+func TestGridParse(t *testing.T) {
+	doc := `{
+		"type": "grid",
+		"props": {"grow": 1, "basis": 0, "columns": 5, "gap": 8},
+		"bind": {"source": "live", "path": "Ally"},
+		"items": [{"type": "text", "props": {"text": "card"}}]
+	}`
+	n, err := ParseSchema([]byte(doc))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if n.Type != TypeGrid {
+		t.Fatalf("type = %q, want grid", n.Type)
+	}
+	if n.Props.Columns == nil || *n.Props.Columns != 5 {
+		t.Fatalf("columns = %v, want 5", n.Props.Columns)
+	}
+	if n.Bind == nil || n.Bind.Source != "live" {
+		t.Fatal("grid bind must parse for items iteration")
+	}
+}

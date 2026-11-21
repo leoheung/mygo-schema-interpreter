@@ -48,6 +48,10 @@ type Props struct {
 	Basis       *float32 `json:"basis,omitempty"`
 	Stretch     bool     `json:"stretch,omitempty"`     // AlignSelf(Stretch)
 	AspectRatio *float32 `json:"aspectRatio,omitempty"` // height = width / r
+	// Columns is the grid's fixed column count (grid nodes only). Cells
+	// size their children, so cards fill both axes and empty team slots
+	// stay blank — the original page's Grid semantics.
+	Columns *int `json:"columns,omitempty"`
 
 	// Alignment: "start", "center", "end", "stretch", "spaceBetween",
 	// "spaceAround", "spaceEvenly" or "baseline". Invalid values are ignored.
